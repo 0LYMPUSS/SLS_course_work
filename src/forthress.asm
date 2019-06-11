@@ -1,8 +1,9 @@
-
-
 global _start
+%include "macro_lib.inc"
 %include "lib.inc"
-%include "macro.inc"
+
+section .data
+in_fd: dq 0
 
 %define pc r15
 %define w r14
@@ -10,46 +11,42 @@ global _start
 
 section .text
 
-%include "words.inc" ; already defined words
+%include "words.inc"
 
 section .bss
 
-resq 1023		; stack end
-rstack_start: resq 1	; stack start
+resq 1023
+rstackStr: resq 1
 
-input buf: resb 1024	; buffer for text
-user_dict: resq 65536	; data for user defined words
+inputBuf: resb 1024
+dictData: resq 65536
 
-user_mem: resq 65536	; global user data
+userMem: resq 65536
 
-state: resq 1		; changes to 1 while compiling, defualt value is 0
+state: resq 1
 
 section .data
-last_word: dq _lw	; pointer to the last word in the dictionary
-here: dq user_dict	; current position
-dp: dq user_mem		; current global data pointer
+lastWord: dq _lw
+curWord: dq dictData
+memPtr: dq userMem
 
 section .rodata
-msg_no_such_word: db ": no such word", 10, 0
+word_not_exist_msg: db  ": word doesn't exist", 10, 0 
 
 section .text
-next:			; next word to execute
-	mov w, pc
-	add pc, 8
-	mov w, [w]
-	jmp [w]
+next:
+ mov w, pc
+ add pc, 8
+ mov w, [w]
+ jmp [w]
 
 _start:
-	jmp i_init
+ jmp i_init
 
-
-; SIGSEV handler
-
-
-%define SA_RESTORER 		0x04000000
-%define SA_SIGINFO  		0x00000004
+%define SA_RESTORER 0x04000000
+%define SA_SIGINFO  0x00000004
 %define __NR_rt_sigaction       0x0D
-%define SIGSEGV         	0x0B
+%define SIGSEGV         0x0B
 setup_trap:
                 mov r10, 8
                 xor rdx, rdx
@@ -66,13 +63,13 @@ sa:
         .handler        dq _trap
         .flags          dq SA_RESTORER | SA_SIGINFO
         .restorer       dq 0
-        .val        	dq 0
+        .val        dq 0
 
 %if 0
 
 sigcontext:
-        .r8                     equ 0x00
-        .r9                     equ 0x08
+        .r8                             equ 0x00
+        .r9                             equ 0x08
         .r10                    equ 0x10
         .r11                    equ 0x18
         .r12                    equ 0x20
@@ -89,9 +86,9 @@ sigcontext:
         .rsp                    equ 0x78
         .rip                    equ 0x80
         .eflags                 equ 0x88
-        .cs                     equ 0x90
-        .gs                     equ 0x92
-        .fs                     equ 0x94
+        .cs                             equ 0x90
+        .gs                             equ 0x92
+        .fs                             equ 0x94
         .__pad0                 equ 0x96
         .err                    equ 0x98
         .trapno                 equ 0xa0
@@ -99,7 +96,6 @@ sigcontext:
         .cr2                    equ 0xb0
         .fpstate                equ 0xb8
         .reserved               equ 0xc0
-
 
 
 sigaltstack:
@@ -114,8 +110,8 @@ sigset_t:
 ucontext:
         .uc_flags                               dq      ?
         .uc_link                                dq      ?
-        .uc_stack                              	sigaltstack
-        .uc_mcontext                    	sigcontext
+        .uc_stack                               sigaltstack
+        .uc_mcontext                    sigcontext
         .uc_sigmask                             sigset_t
 
 %endif

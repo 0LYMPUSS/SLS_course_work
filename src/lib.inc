@@ -1,17 +1,20 @@
-fndef _UTIL_
-%define _UTIL_
+%ifndef _LIB_ ;include guard
+%define _LIB_
 
 extern string_length
-extern print_newline
-extern print_char
 extern print_string
+extern print_char
+extern print_newline
 extern print_uint
 extern print_int
-extern parse_int
-extern parse_uint
 extern string_equals
 extern read_char
-extern read_word
 extern string_copy
-extern in_fd
+extern read_word
+extern parse_uint
+extern parse_int
+extern exit
+extern print_err
+extern read_line
+
 %endif

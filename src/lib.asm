@@ -1,4 +1,3 @@
-
 global string_length
 global print_string
 global print_char
@@ -7,20 +6,39 @@ global print_uint
 global print_int
 global string_equals
 global read_char
+global string_copy
 global read_word
 global parse_uint
 global parse_int
-global string_copy
-global read_line
+global exit
 global print_err
+global read_line
 
-section .data
-in_fd: dq 0
+section .text 
 
-section .text
+string_length: 
 
+	xor rax, rax 
+	.loop: 
+		cmp byte [rdi+rax], 0 ;check if current symbol is null-terminator 
+		je .end 
+		inc rax 
+		jmp .loop 
+	.end: 
+		ret 
+;rdi - pointer to string
+print_string: 
+	call string_length 
+	mov rdx, rax 
+	mov rax, 1 
+	mov rsi, rdi 
+	mov rdi, 1 
+	syscall 
+	ret 
+
+;rdi - pointer to string
 print_err:
-        call string_length
+	call string_length
         mov rdx, rax
         mov rax, 1
         mov rsi, rdi
@@ -28,271 +46,279 @@ print_err:
         syscall
         ret
 
-read_line:
-	xor r8, r8
-        mov r9, rsi
-        dec r9
+print_char: 
+	push rdi 
+	mov rax, 1 
+	mov rdx, 1 
+	mov rsi, rsp 
+	pop rdi 
+	mov rdi, 1 
+	syscall 
+	ret 
 
-        .loop:
-        push rdi
-        call read_char
-        pop rdi
-        cmp al, 0x20
-        je .loop
-        cmp al, 0x09
-        je .loop
-        cmp al, 0x0d
-        je .loop
-        cmp al, 0x0a
-        je .loop
-        test al, al
-        jz .loop3
+print_newline: 
+	mov rdi, 10 
+	call print_char 
+	ret
+ 
+print_uint: 
+	xor rcx, rcx 
+	mov rax, rdi 
+	mov r8, 10 
+	mov r9, rsp 
+	dec rsp 
+	mov byte[rsp], 0 
 
-        .loop2:
-        mov byte [rdi + r8], al
-        inc r8
-        push rdi
-        call read_char
-        pop rdi
-        cmp al, 0x0a
-        je .loop3
-        test al, al
-        jz .loop3
-        cmp r8, r9
-        je .fin
-        jmp .loop2
+	.loop: 
+		xor rdx, rdx 
+		div r8 
+		or rdx, 0x30 
+		dec rsp 
+		mov [rsp], dl 
+		inc rcx 
+		cmp rax, 0 
+		jne .loop 
 
-        .loop3:
-        mov byte[rdi + r8], 0
-        mov rax, rdi
-        mov rdx, r8
-        ret
-
-        .fin:
-        xor rax, rax
-        ret
-
-string_length:
-	
-    	xor rax, rax
-    	.loop:
-		cmp byte [rdi+rax], 0 	;check if current symbol is null-terminator
-		je .end			
-		inc rax
-		jmp .loop
-	.end: 
-    	ret	
-
-print_string:
-    	call string_length
-	mov rdx, rax
-	mov rax, 1
-	mov rsi, rdi
-	mov rdi, 1
-	syscall
-    	ret
+	mov rdi, rsp 
+	call print_string 
+	mov rsp, r9 
+	ret 
 
 
-print_char:
-   	push rdi 	
-    	mov rax, 1
-    	mov rdx, 1
-	mov rsi, rsp
-	pop rdi
-    	mov rdi, 1
-    	syscall
-    	ret
-
-print_newline:
-	mov rdi, 10
-	call print_char
-    ret
-
-
-print_uint:
-    	xor rcx, rcx
-	mov rax, rdi
-	mov r8, 10
-	mov r9, rsp
-	dec rsp
-	mov byte[rsp], 0
-
-	.loop:
-	xor rdx, rdx
-	div r8
-	or rdx, 0x30
-	dec rsp
-	mov [rsp], dl
-	inc rcx
-	cmp rax, 0
-	jne .loop
-	
-	mov rdi, rsp
-	call print_string
-	mov rsp, r9
-    	ret
-
-
-print_int:
-    cmp rdi, 0
-    mov r8, rdi
-    jge .unsigned
-	mov rdi, 0x2d
-	call print_char
-	neg r8
-	mov rdi, r8
-   .unsigned:
-    	call print_uint
-    ret
-
-string_equals:
-	.loop:
-	mov cl, byte[rdi]
-	cmp cl, byte[rsi]
-	jne .falsee
-	cmp byte[rdi], 0
-	je .end
-	inc rdi
-	inc rsi
-	jmp .loop
-
-	.falsee:
-	mov rax, 0
+print_int: 
+	cmp rdi, 0 
+	mov r8, rdi 
+	jge .unsigned 
+	mov rdi, 0x2d 
+	call print_char 
+	neg r8 
+	mov rdi, r8 
+	.unsigned: 
+	call print_uint 
 	ret
 
-	.truee:
-	mov rax, 1
+; rdi - pointer to string 1, rsi - pointer to string 2
+; retutns: 1 if strings are equal, else 0 
+string_equals: 
+	.loop: 
+	mov cl, [rdi] 
+	cmp cl, [rsi] 
+	jne .f 
+	cmp cl, 0 
+	je .t 
+	inc rdi 
+	inc rsi 
+	jmp .loop 
+	.f: 
+		xor rax, rax 
+		ret 
+	.t: 
+		mov rax, 1 
+		ret 
+
+read_char: 
+	xor rax, rax 
+	mov rdi, 0 
+	push 0 
+	mov rsi, rsp 
+	mov rdx, 1 
+	syscall 
+	pop rax 
 	ret
 
-	.end:
-	cmp byte[rsi], 0
-	jne .falsee
-	jmp .truee
+;rdi - pointer to string, rsi - pointer to buffer
+string_copy:
+ .copy_loop:
+  mov al, byte [rdi]
+  mov byte [rsi], al
+  inc rdi
+  inc rsi
+  test al, al
+  jnz .copy_loop
+  ret
 
-read_char:
-    	xor rax, rax
-	mov rdi, 0	
-	push 0
-	mov rsi, rsp
-	mov rdx, 1
-	syscall
-	pop rax
-    	ret 
+;rdi - pointer to string, rsi - pointer to buffer, rdx - buffer length
+;returns: pointer to buffer or 0 if buffer is too short
+str_copy: 
+	push rsi 
+	call string_length 
+	cmp rax, rdx 
+	jge .fail 
+	.copy_loop: 
+	xor rcx, rcx 
+	mov cl, byte[rdi] 
+	mov byte[rsi], cl 
+	inc rdi 
+	inc rsi 
+	test cl,cl
+	jnz .copy_loop 
 
+	;return address of new string 
+	pop rax 
+	ret 
+
+	;return zero if buffer is shorter than original string 
+	.fail: 
+		pop rax
+		xor rax, rax 
+		
+		ret
+
+;rdi - pointer to buffer, rsi - buffer length
+;returns: rdi - pointer to buffer, or 0 if buffer didn't have enough space
 read_word:
 	xor r8, r8
 	mov r9, rsi
 	dec r9
 
-	.loop:
+	.firstread:
 	push rdi
-	call read_char
-	pop rdi
-	cmp al, 0x20
-	je .loop
-	cmp al, 0x09
-	je .loop
-	cmp al, 0x0d
-	je .loop
-	cmp al, 0x0a
-	je .loop
-	test al, al
-	jz .loop3
+        call read_char
+        pop rdi
+        cmp al, 0x20
+        je .firstread
+        cmp al, 10
+        je .firstread
+        cmp al, 13
+        je .firstread
+        cmp al, 9
+	je .firstread
+	test al,al
+	jz .done
 
-	.loop2:
-	mov byte [rdi + r8], al
-	inc r8
+	.write:
+        mov byte [rdi+r8], al
+        inc r8
+
+	;read
 	push rdi
 	call read_char
 	pop rdi
 	cmp al, 0x20
-	je .loop3
-	cmp al, 0x09
-	je .loop3
-	cmp al, 0x0d
-	je .loop3
-	cmp al, 0x0a
-	je .loop3
-	test al, al
-	jz .loop3
+	je .done
+	cmp al, 10
+	je .done
+	cmp al, 13
+	je .done
+	cmp al, 9
+	je .done
+	test al,al
+        jz .done
+
+	;check
 	cmp r8, r9
-	je .fin
-	jmp .loop2
+	je .fail
 
-	.loop3:
-	mov byte[rdi + r8], 0
+	jmp .write
+
+	.done:
+	mov byte [rdi+r8], 0
 	mov rax, rdi
 	mov rdx, r8
 	ret
 
-	.fin:
+	.fail:
 	xor rax, rax
-    	ret
+	ret
 
-; rdi points to a string
-; returns rax: number, rdx : length
+	pop r9
+
+;rdi - pointer to buffer, rsi - buffer length
+;returns: rdi - pointer to buffer, or 0 if buffer didn't have enough space
+read_line:
+        xor r8, r8
+        mov r9, rsi
+        dec r9
+
+	;skip whitespaces
+        .skip:
+        push rdi
+        call read_char
+        pop rdi
+        cmp al, 0x20
+        je .skip
+        cmp al, 10
+        je .done
+        test al,al
+        jz .done
+
+        .write:
+        mov byte [rdi+r8], al
+        inc r8
+
+        ;read
+        push rdi
+        call read_char
+        pop rdi
+        cmp al, 10
+        je .done
+        test al,al
+        jz .done
+
+        ;check
+        cmp r8, r9
+        je .fail
+
+        jmp .write
+
+        .done:
+        mov byte [rdi+r8], 0
+        mov rax, rdi
+        mov rdx, r8
+        ret
+
+        .fail:
+        xor rax, rax
+        ret
+
+        pop r9
+
+;rdi - pointer to null-terminted string
+;returns: rax - parsed int, rdx - number of digits in the int
 parse_uint:
-    	xor rax, rax
-	xor rcx, rcx
-	mov r9, 10	
+	xor rax, rax
+       	mov r10, 10
+	xor rcx, rcx	
 
-	.find_int:
-	mov r8b, byte[rdi+rcx]
+	.loop:	
+	mov r8b, byte [rdi+rcx]
 	cmp r8b, '0'
 	jl .end
 	cmp r8b, '9'
 	jg .end
 	inc rcx
-	and r8, 0xf
-	mul r9
+	and r8, 0x0f
+	mul r10
 	add rax, r8
-	jmp .find_int
+       	jmp .loop
 
 	.end:
 	mov rdx, rcx
-	ret
 
-; rdi points to a string
-; returns rax: number, rdx : length
+	ret	
+
+;rdi - pointer to null-terminated string
+;returns: rax - parsed int, rdx - number of digits in the int(including sign)
 parse_int:
-    	xor rax, rax
-	
-	mov r10b, byte[rdi]
-	cmp r10b, '-'
-	je .minus
-
-	call parse_uint	
-	ret
-	
-	.minus:
+	xor r8,r8
+	mov r11b, [rdi]
+	cmp r11b, '-'
+	jne .plus
+	mov r8, 1
 	inc rdi
+	
+	.plus:
+	push r8
 	call parse_uint
+	pop r8
+	and r8, r8
+	jz .end
+	neg rax
 	inc rdx
-	neg rax	
-    	ret 
-
-
-string_copy:
-	push rsi
-	call string_length
-	cmp rax, rdx
-	jge .zero
-	.copy_loop:
-	xor rcx, rcx
-	mov cl, byte[rdi]
-	mov byte[rsi], cl
-	inc rdi
-	inc rsi
-	test cl, cl
-	jnz .copy_loop
-	
-	;return address to new string
-	.fin:
-	pop rax
+	.end:
 	ret
-	
-	;return zero if buffer-size and string-size don't match
-	.zero:
-	pop rax
-	xor rax, rax
+;rdi - exit code
+exit:
+	mov rax, 60
+	syscall	
 	ret

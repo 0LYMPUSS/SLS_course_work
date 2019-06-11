@@ -1,4 +1,68 @@
-%include "macro_lib.inc"
+
+
+native "create", create
+ mov rcx, [lastWord]
+ mov rsi, [curWord]
+ mov [rsi], rcx
+ mov [lastWord], rsi
+ add rsi, 8
+ mov byte [rsi], 0
+ inc rsi
+
+ pop rdi
+ push rsi
+ call string_copy
+ pop rsi
+ push rsi
+ mov rdi, rsi
+ call string_length
+ pop rsi
+ add rsi, rax
+ inc rsi
+ pop rax
+ mov [rsi], al
+ inc rsi
+ mov [curWord], rsi
+ jmp next
+
+colon ":", colon
+ .restart:
+ dq xt_inbuf, xt_word
+ branch0 .restart
+ dq xt_lit, 0, xt_inbuf, xt_create
+ dq xt_lit, 1, xt_state, xt_put
+ dq xt_lit, i_docol, xt_comma
+ dq xt_exit
+
+colon ";", semicolon, 1
+ dq xt_lit, 0, xt_state, xt_put
+ dq xt_lit, xt_exit, xt_comma
+ dq xt_exit
+
+
+; It is being called when SIGSEGV occurs
+_trap:
+ push qword [stack_base]
+ push rdx
+ mov rax, xt_trap_dispatch
+ mov w, rax
+ jmp [rax]
+
+colon "trap_dispatch", trap_dispatch
+ dq xt_lit, trapword
+ dq xt_find, xt_cfa, xt_execute
+ dq xt_bye
+
+colon "trap", trap
+ dq xt_lit, trapword
+ dq xt_prints, xt_lit, 10, xt_emit
+ dq xt_exit
+
+native "docol", docol
+ rpush pc
+ add w, 8
+ mov pc, w
+ jmp next
 
 ; (a -- )
 native "drop", drop
@@ -15,9 +79,28 @@ native "swap", swap
 
 ; ( a -- a a )
 native "dup", dup
- mov rax, [rsp]
- push rax
+ ;mov rax, [rsp]
+ ;push rax
+ push qword [rsp]
  jmp next
+
+native ".", dot
+ pop rdi
+ call print_int
+ jmp next
+
+native ".S", showStack
+ mov rcx, rsp
+ .loop:
+  cmp rcx, [stack_base]
+  jae next
+  mov rdi, [rcx]
+  push rcx
+  call print_int
+  call print_newline
+  pop rcx
+  add rcx, 8
+  jmp .loop
 
 ; ( a b -- [a+b] )
 native "+", plus
@@ -105,7 +188,7 @@ native "land", land
  pop rax
  test rax, rax
  jz .false
- pop rax, rax
+ pop rax
  jz .false
  push 1
  jmp next
@@ -210,7 +293,7 @@ native "find", find
  mov rsi, [rsi]
  test rsi, rsi
  jnz .loop
-;not_found:
+.not_found:
  mov qword [rsp], 0
  jmp next
 .found:
@@ -274,7 +357,7 @@ colon "printc", printc
  branch0 .exit
  dq xt_dup, xt_fetchchar, xt_emit
  dq xt_lit, 1, xt_plus
- dq xt_pop_r, xt_lit, 1, xtminus, xt_push_r
+ dq xt_pop_r, xt_lit, 1, xt_minus, xt_push_r
  branch .loop
 
 .exit:
@@ -322,7 +405,7 @@ native "cfa", cfa
  jmp next
 
 section .data
- stackBase: dq 0
+ stack_base: dq 0
 
 native "lit", lit
  push qword [pc]
@@ -346,10 +429,11 @@ const here, [curWord]
 
 ;to initialize
 native "init", init
+ call setup_trap
  mov qword [state], 0
  mov rstack, rstackStr
  mov pc, interpreter_stub
- cmp qword [stackBase], 0
+ cmp qword [stack_base], 0
  je .first
  mov rsp, [stack_base]
  jmp next
@@ -407,10 +491,10 @@ colon "interpret", interpret
 
  .interpreting:
  dq xt_swap, xt_drop
- dq xt_comma
+ dq xt_execute
  dq xt_exit
 
- .number
+ .number:
  dq xt_drop, xt_dup
  dq xt_number
  branch0 .no_word
