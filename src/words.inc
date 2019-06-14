@@ -420,6 +420,8 @@ native ",", comma
  
 const inbuf, inputBuf
 
+const last_word, lastWord
+
 const state, state
 
 const in_fd, in_fd
